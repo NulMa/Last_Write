@@ -29,6 +29,8 @@
   ['keydown', 'pointerdown'].forEach(function (t) { window.addEventListener(t, unlockAudio, true); });
   var Module = {
     canvas: canvas,
+    /* 빌드마다 주소를 바꿔 브라우저가 옛 wasm 을 캐시에서 쓰지 않게 한다 (__VER__ 은 web-build.bat 이 채움) */
+    locateFile: function (p) { return p + '?v=__VER__'; },
     print: function () {}, printErr: function () {},
     onRuntimeInitialized: function () { document.getElementById('msg').remove(); canvas.focus(); }
   };

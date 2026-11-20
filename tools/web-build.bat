@@ -25,4 +25,6 @@ call emcc -Os -DPLATFORM_WEB -I"%SRC%" ^
    "%LIB%" -sUSE_GLFW=3 -sASYNCIFY -sALLOW_MEMORY_GROWTH=1 -sSTACK_SIZE=1048576 ^
    -sEXPORTED_RUNTIME_METHODS=HEAPF32 ^
    --shell-file "%ROOT%tools\web\shell.html" -o "%ROOT%devlog\play\index.html" || exit /b 1
+rem 캐시 무효화: index.js · index.wasm 주소에 빌드 시각을 붙인다
+powershell -NoProfile -Command "$f='%ROOT%devlog\play\index.html'; $v=Get-Date -Format yyyyMMddHHmmss; $t=[IO.File]::ReadAllText($f); $t=$t.Replace('__VER__',$v).Replace('src=index.js>','src=index.js?v='+$v+'>').Replace('src=\"index.js\"','src=\"index.js?v='+$v+'\"'); [IO.File]::WriteAllText($f,$t)" || exit /b 1
 echo [web] devlog\play\index.html
