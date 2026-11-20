@@ -226,7 +226,7 @@ typedef enum { SCR_TITLE = 0, SCR_MENU, SCR_PLAY, SCR_CLEAR, SCR_END } Screen;
 
 #define SAVE_PATH "save.dat"
 
-/* 볼륨 한 칸. 10% 면 기본값 30% 에서 0 까지 세 번이라 손이 안 아프다 */
+/* 볼륨 한 칸. 10% 면 기본값 10% 에서 한 번이면 0 이다 */
 #define VOL_STEP 0.10f
 
 /* 난이도 티어 — 스테이지 인덱스(0부터)로 판정한다.
@@ -1230,7 +1230,7 @@ int main(int argc, char **argv)
 
     sfx_init();
     bgm_init();   /* 오디오 장치를 sfx 와 공유한다. 순서가 바뀌면 안 된다 */
-    /* 세이브에 남은 볼륨을 적용한다. 세이브가 없으면 progress_reset 이 넣은 30% */
+    /* 세이브에 남은 볼륨을 적용한다. 세이브가 없으면 progress_reset 이 넣은 10% */
     bgm_set_volume(prog.bgmVol);
     sfx_set_volume(prog.sfxVol);
 

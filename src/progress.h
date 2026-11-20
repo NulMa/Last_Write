@@ -8,7 +8,7 @@
 #define MAX_STAGES 32
 
 /* 처음 켰을 때 볼륨. 1.0 은 원래 믹스 그대로라 실제로 시끄럽다 */
-#define VOL_DEFAULT 0.30f
+#define VOL_DEFAULT 0.10f
 
 
 typedef struct {
