@@ -30,7 +30,14 @@
 #include <stdlib.h>
 #include <math.h>
 
-static const Color C_BG      = {  10,  13,  24, 255 };
+/* ── 녹화 모드 (제작 수기 GIF 용, tools/rec-plan.c 와 짝) ──
+ * --rec <level> <script> <outdir> : 스크립트의 입력을 재생하며 캔버스를 png 로 떨군다.
+ * 녹화 중에는 시계를 프레임으로 바꾼다. png 를 쓰느라 프레임이 늦어져도
+ * 깜빡임·파동 무늬 같은 애니메이션이 실제 플레이와 같은 속도로 찍힌다. */
+static int g_rec = 0, g_recFrame = 0;
+static double now_s(void) { return g_rec ? g_recFrame / 60.0 : GetTime(); }
+
+static const Color C_BG     = {  10,  13,  24, 255 };
 static const Color C_GRID    = {  17,  22,  38, 255 };
 static const Color C_SOLID   = {  44,  51,  72, 255 };
 static const Color C_SOLID_T = {  74,  86, 118, 255 };
@@ -769,13 +776,13 @@ static void draw_hud(const World *w, const char *toast, float toastTimer)
         float tintA = 0.16f + prog * 0.20f;
         DrawRectangle(0, 0, VIEW_W, VIEW_H, Fade(tint, tintA));
         for (int i = 0; i < VIEW_H; i += 3)
-            if (((i / 3 + (int)(GetTime() * 40)) & 3) == 0)
+            if (((i / 3 + (int)(now_s() * 40)) & 3) == 0)
                 DrawRectangle(0, i, VIEW_W, 1, Fade(tint, 0.10f + prog * 0.25f));
         centerb(l1, VIEW_H / 2 - 34, tint);
         center(l2, VIEW_H / 2 + 6, C_TEXT);
         if (ready)
             center_blink(S_DEATH_ANYKEY, VIEW_H / 2 + 32, C_DIM,
-                         ((int)(GetTime() * 2) % 2) == 0);
+                         ((int)(now_s() * 2) % 2) == 0);
     }
 
     /* ★ 스쳐 지나가는 문구 셋(회수·정지·거절)은 **로드아웃 패널을 피한다.**
@@ -1127,13 +1134,38 @@ int main(int argc, char **argv)
     int shotLvl  = (argc > 3) ? atoi(argv[3]) : 0;
     int shotAt   = (argc > 4) ? atoi(argv[4]) : 30;   /* 몇 프레임째를 찍을지 */
 
+    /* --rec <level> <script> <outdir> <mask> */
+    static Input recIn[6000];
+    int recN = 0, recLvl = 0, recTail = 0;
+    unsigned recMask = 0;
+    const char *recDir = ".";
+    (void)recDir; (void)recTail;
+#ifdef LASTWRITE_REC   /* tools/rec-build.bat 로만 켠다. 평소 빌드에는 png 인코더가 안 붙는다 */
+    if (argc > 5 && strcmp(argv[1], "--rec") == 0) {
+        g_rec = 1;
+        recLvl = atoi(argv[2]);
+        recDir = argv[4];
+        recMask = (unsigned)strtoul(argv[5], 0, 0);
+        FILE *f = fopen(argv[3], "r");
+        int r, l, jh, jp, dp, tg;
+        while (f && recN < 6000 && fscanf(f, "%d %d %d %d %d %d", &r, &l, &jh, &jp, &dp, &tg) == 6) {
+            Input *in = &recIn[recN++];
+            memset(in, 0, sizeof(*in));
+            in->right = r; in->left = l; in->jumpHeld = jh; in->jumpPressed = jp;
+            in->dashPressed = dp; in->toggleAbility = tg;
+        }
+        if (f) fclose(f);
+    }
+#endif
+
     Tune tune;
     tune_defaults(&tune);
     char toast[128] = { 0 };
     float toastTimer = 0.0f;
     float volTimer = 0.0f;   /* 볼륨 오버레이가 남아 있는 시간 */
     int   volDirty = 0;      /* 아직 저장 안 된 볼륨 변경이 있다 */
-    load_tune(&tune, "tune.txt", toast, sizeof(toast));
+    /* 녹화는 계획기와 같은 수치여야 한다 — tune.txt 를 읽으면 입력이 어긋난다 */
+    if (!g_rec) load_tune(&tune, "tune.txt", toast, sizeof(toast));
 
     Progress prog;
     progress_reset(&prog, AB_STARTING);
@@ -1146,6 +1178,15 @@ int main(int argc, char **argv)
         /* 스크린샷용: 그 레벨까지의 보상을 미리 지급한다 */
         for (int i = 0; i < shotLvl && i < LEVEL_COUNT; i++) world.unlocked |= LEVELS[i].reward;
         sim_load(&world, &tune, shotLvl);
+    }
+    if (g_rec) {
+        sim_new_game(&world, &tune);   /* 계획기와 똑같이 시작한다 */
+        for (int i = 0; i < recLvl && i < LEVEL_COUNT; i++) world.unlocked |= LEVELS[i].reward;
+        world.unlocked |= recMask;
+        sim_load(&world, &tune, recLvl);
+        shotMode = 1;                  /* 아래 분기들이 플레이 화면에서 시작하게 */
+        shotAt = 1 << 30;
+        shotTile = -1;                 /* argv[2] 는 여기선 레벨이다 — 위치로 읽히면 안 된다 */
     }
 
     Screen screen = (shotMode || shotClear || shotDeath) ? SCR_PLAY
@@ -1351,6 +1392,10 @@ int main(int argc, char **argv)
              * 다른 큐를 쓰므로 위 입력들과 간섭하지 않는다 */
             in.anyKey = (GetKeyPressed() != 0);
             if (IsKeyPressed(KEY_R)) sim_load(&world, &tune, world.levelIndex);
+            if (g_rec) {
+                if (g_recFrame < recN) in = recIn[g_recFrame];
+                else { memset(&in, 0, sizeof(in)); in.toggleAbility = -1; }
+            }
 
             sim_step(&world, &tune, &in, dt);
             /* 사건 하나에 소리 하나. sim 이 이벤트로 알려주므로 렌더/사운드가
@@ -1380,7 +1425,7 @@ int main(int argc, char **argv)
                 progress_record(&prog, world.levelIndex, world.hasDisk, world.time, LEVEL_COUNT);
                 endingDue = !wasAll
                          && (progress_total_cleared(&prog, LEVEL_COUNT) >= LEVEL_COUNT);
-                progress_save(&prog, SAVE_PATH);
+                if (!g_rec) progress_save(&prog, SAVE_PATH);
                 screen = SCR_CLEAR;
             }
         }
@@ -1393,11 +1438,11 @@ int main(int argc, char **argv)
         if (camX > maxCam) camX = maxCam;
 
         BeginTextureMode(canvas);
-            if (screen == SCR_TITLE)     draw_title((float)GetTime());
-            else if (screen == SCR_MENU) draw_menu(&prog, menuSel, (float)GetTime(), confirmErase);
+            if (screen == SCR_TITLE)     draw_title((float)now_s());
+            else if (screen == SCR_MENU) draw_menu(&prog, menuSel, (float)now_s(), confirmErase);
             else if (screen == SCR_END)  draw_end(&world, &prog);
             else {
-                draw_world(&world, &tune, (float)GetTime(), camX);
+                draw_world(&world, &tune, (float)now_s(), camX);
                 /* 죽었거나 클리어 화면일 때는 힌트를 끈다.
                  * 오버레이보다 먼저 그려지므로 반투명 뒤로 비쳐서 둘 다 안 읽힌다. */
                 if (world.deathCause == DEATH_NONE && screen != SCR_CLEAR)
@@ -1413,6 +1458,24 @@ int main(int argc, char **argv)
                        Fade(C_GOAL, toastTimer > 1.0f ? 1.0f : toastTimer));
             draw_volume(volTimer);   /* 화면 종류와 무관하게 맨 위에 */
         EndTextureMode();
+
+#ifdef LASTWRITE_REC
+        if (g_rec) {
+            /* 30fps 로 떨군다 — GIF 로는 그 이상 의미가 없다 */
+            if ((g_recFrame & 1) == 0) {
+                Image im = LoadImageFromTexture(canvas.texture);
+                ImageFlipVertical(&im);
+                char path[512];
+                snprintf(path, sizeof(path), "%s/f%05d.png", recDir, g_recFrame / 2);
+                ExportImage(im, path);
+                UnloadImage(im);
+            }
+            g_recFrame++;
+            /* 스크립트가 끝나거나 클리어 화면이 뜨면 1.5초 더 찍고 끝낸다 */
+            if (g_recFrame >= recN || screen != SCR_PLAY) recTail++;
+            if (recTail > 90) quit = 1;
+        }
+#endif
 
         BeginDrawing();
             ClearBackground(BLACK);
