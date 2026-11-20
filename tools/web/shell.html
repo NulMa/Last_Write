@@ -23,6 +23,10 @@
   }, { passive: false });
   var canvas = document.getElementById('canvas');
   canvas.addEventListener('click', function () { canvas.focus(); });
+  /* 브라우저는 사용자 입력 전에는 소리를 막는다. miniaudio 는 클릭·터치에서만
+   * 오디오를 깨우므로, 키보드만 쓰는 사람을 위해 키 입력에서도 깨운다 */
+  function unlockAudio() { if (window.miniaudio && window.miniaudio.unlock) window.miniaudio.unlock(); }
+  ['keydown', 'pointerdown'].forEach(function (t) { window.addEventListener(t, unlockAudio, true); });
   var Module = {
     canvas: canvas,
     print: function () {}, printErr: function () {},

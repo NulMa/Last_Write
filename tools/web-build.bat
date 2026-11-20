@@ -23,5 +23,6 @@ if not exist "%ROOT%devlog\play" mkdir "%ROOT%devlog\play"
 call emcc -Os -DPLATFORM_WEB -I"%SRC%" ^
    "%ROOT%src\main.c" "%ROOT%src\sim.c" "%ROOT%src\levels.c" "%ROOT%src\progress.c" "%ROOT%src\sfx.c" "%ROOT%src\bgm.c" ^
    "%LIB%" -sUSE_GLFW=3 -sASYNCIFY -sALLOW_MEMORY_GROWTH=1 -sSTACK_SIZE=1048576 ^
+   -sEXPORTED_RUNTIME_METHODS=HEAPF32 ^
    --shell-file "%ROOT%tools\web\shell.html" -o "%ROOT%devlog\play\index.html" || exit /b 1
 echo [web] devlog\play\index.html
